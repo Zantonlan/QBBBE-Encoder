@@ -1,7 +1,12 @@
 #include <stdlib.h>
+#include <math.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
+
+#ifndef M_PI
+	#define M_PI 3.14159265358979323846
+#endif
 
 int main(int argc, char* argv[]) {
 	if (argc < 5) goto ret400;
@@ -25,14 +30,14 @@ int main(int argc, char* argv[]) {
 		return 404;
 	}
 
-	int *bytes = malloc(sizeof(int));
-	bytes[0] = atoi(argv[3]);
-	int numBytes = 1;
+	int *freqs = malloc(sizeof(int));
+	freqs[0] = atoi(argv[3]);
+	int numFreqs = 1;
 	int b; //for byte
 	while ((b = fgetc(ff)) != EOF) {
-		bytes = realloc(bytes, sizeof(int)*(numBytes+1));
-		bytes[numBytes] = b+atoi(argv[3]);
-		numBytes++;
+		freqs = realloc(freqs, sizeof(int)*(numFreqs+1));
+		freqs[numFreqs] = b+atoi(argv[3]);
+		numFreqs++;
 	}
 
 	fclose(ff);
@@ -44,6 +49,7 @@ int main(int argc, char* argv[]) {
 	FILE *tmp2 = fopen("tmp2", "wb");
 
 	//start writing file
+	int bytesInFile = 0;
 	//"fmt " chunk
 	fprintf(tmp2, "fmt "); //id
 	uint32_t sixteen32 = 16; fwrite(&sixteen32, sizeof(uint32_t), 1, tmp2); //remaining size
@@ -53,13 +59,28 @@ int main(int argc, char* argv[]) {
 	uint32_t byterate32 = (uint32_t)(samplerate32*one16*16/8); fwrite(&byterate32, sizeof(uint32_t), 1, tmp2); //byterate
 	uint16_t blockAlign16 = (uint16_t)(one16*16/8); fwrite(&blockAlign16, sizeof(uint16_t), 1, tmp2); //block align
 	uint16_t sixteen16 = 16; fwrite(&sixteen16, sizeof(uint16_t), 1, tmp2); //bits per sample
+	bytesInFile += 24;
 
 	//"data" chunk
+	int numOfSamples = samplerate32*atoi(argv[4]);
+	uint16_t amplitude = 32767;
 	fprintf(tmp2, "data"); //id
+	uint32_t dataLen32 = (uint32_t)(numOfSamples*1*16/8); fwrite(&dataLen32, sizeof(uint32_t), 1, tmp2); //remaining size
+	//write in samples
+	for (int n = 0; n < numOfSamples; n++) {
+		double t = (double)n/samplerate32;
+		int16_t sample = (int16_t)(amplitude*sin(2.0*M_PI*atoi(argv[3])*t));
+		fwrite(&sample, sizeof(int16_t), 1, tmp2);
+		bytesInFile += sizeof(int16_t);
+	}
 
-	fprintf(tf, "RIFF");
-	uint32_t zero32 = 0x00000000; fwrite(&zero32, 1, 4, tf);
-	fprintf(tf, "WAVE");
+	//header
+	fprintf(tf, "RIFF"); //RIFF thingy
+	uint32_t remLen32 = (uint32_t)bytesInFile+4; fwrite(&remLen32, 1, 4, tf); //remaining size (file-wide)
+	fprintf(tf, "WAVE"); //WAVE thingy
+
+	//concatenate tmp2 and test.file
+
 
 	fclose(tmp1);
 	fclose(tmp2);

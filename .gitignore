@@ -1,2 +1,6 @@
 *.exe
 *.o
+.vscode
+tmp2
+tmp1
+test.file
