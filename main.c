@@ -30,7 +30,7 @@ int main(int argc, char* argv[]) {
 
 	FILE *ff = fopen(argv[1], "rb"); //for from file
 	if (!ff) {
-		printf("404, from file not found!");
+		printf("404, from file not found!\n");
 		return 404;
 	}
 
@@ -49,53 +49,63 @@ int main(int argc, char* argv[]) {
 
 	fclose(ff);
 
-	printf("Done reading source file and outputting frequencies into temp file.\n");
+	printf("Done reading source file and storing required frequencies into ram.\n");
 
 	FILE *tf = fopen(argv[2], "wb");
-	FILE *tmp1 = fopen("tmp1", "rb");
-	FILE *tmp2 = fopen("tmp2", "wb");
+	FILE *tmp = fopen("tmp", "wb");
 
 	//start writing file
 	int bytesInFile = 0;
 	//"fmt " chunk
-	fprintf(tmp2, "fmt "); //id
-	uint32_t sixteen32 = 16; fwrite(&sixteen32, sizeof(uint32_t), 1, tmp2); //remaining size
-	uint16_t one16 = 1; fwrite(&one16, sizeof(uint16_t), 1, tmp2); //type(PCM)
-	fwrite(&one16, sizeof(uint16_t), 1, tmp2); //#channels
-	uint32_t samplerate32 = samplerate; fwrite(&samplerate32, sizeof(uint32_t), 1, tmp2); //samplerate
-	uint32_t byterate32 = (uint32_t)(samplerate32*one16*16/8); fwrite(&byterate32, sizeof(uint32_t), 1, tmp2); //byterate
-	uint16_t blockAlign16 = (uint16_t)(one16*16/8); fwrite(&blockAlign16, sizeof(uint16_t), 1, tmp2); //block align
-	uint16_t sixteen16 = 16; fwrite(&sixteen16, sizeof(uint16_t), 1, tmp2); //bits per sample
+	fprintf(tmp, "fmt "); //id
+	uint32_t sixteen32 = 16; fwrite(&sixteen32, sizeof(uint32_t), 1, tmp); //remaining size
+	uint16_t one16 = 1; fwrite(&one16, sizeof(uint16_t), 1, tmp); //type(PCM)
+	fwrite(&one16, sizeof(uint16_t), 1, tmp); //#channels
+	uint32_t samplerate32 = samplerate; fwrite(&samplerate32, sizeof(uint32_t), 1, tmp); //samplerate
+	uint32_t byterate32 = (uint32_t)(samplerate32*one16*16/8); fwrite(&byterate32, sizeof(uint32_t), 1, tmp); //byterate
+	uint16_t blockAlign16 = (uint16_t)(one16*16/8); fwrite(&blockAlign16, sizeof(uint16_t), 1, tmp); //block align
+	uint16_t sixteen16 = 16; fwrite(&sixteen16, sizeof(uint16_t), 1, tmp); //bits per sample
 	bytesInFile += 24;
 
 	//"data" chunk
 	int numOfSamples = samplerate*atoi(argv[4]);
 	int freqLength = numOfSamples/numFreqs;
 	uint16_t amplitude = 32767;
-	fprintf(tmp2, "data"); //id
-	uint32_t dataLen32 = (uint32_t)(numOfSamples*1*16/8); fwrite(&dataLen32, sizeof(uint32_t), 1, tmp2); //remaining size
+	fprintf(tmp, "data"); //id
+	uint32_t dataLen32 = (uint32_t)(numOfSamples*1*16/8); fwrite(&dataLen32, sizeof(uint32_t), 1, tmp); //remaining size
 	//write in samples
 	for (int n = 0; n < numOfSamples; n++) {
 		int freq = freqs[0];
 		int16_t sample = createSample(freqs[n/freqLength], n, samplerate, amplitude);
-		fwrite(&sample, sizeof(int16_t), 1, tmp2);
+		fwrite(&sample, sizeof(int16_t), 1, tmp);
 		bytesInFile += sizeof(int16_t);
 	}
+
+	printf("Done temporarily storing data in tmp file.\n");
 
 	//header
 	fprintf(tf, "RIFF"); //RIFF thingy
 	uint32_t remLen32 = (uint32_t)bytesInFile+4; fwrite(&remLen32, 1, 4, tf); //remaining size (file-wide)
 	fprintf(tf, "WAVE"); //WAVE thingy
 
-	//concatenate tmp2 and test.file
+	printf("Done writing header into final file.\nBeginning to copy tmp data into final file.\n");
 
+	//concatenate tmp and test.file
+	fclose(tmp);
+	tmp = fopen("tmp", "rb");
+	unsigned char buf[65536];
+	size_t n;
+	while ((n = fread(buf, 1, 65536, tmp)) > 0) {
+		fwrite(buf, 1, n, tf);
+	}
 
-	fclose(tmp1);
-	fclose(tmp2);
-	if (remove("tmp1") != 0) {
+	printf("Done copying tmp data into final file.\nCleaning up...\n");
+
+	fclose(tmp);
+	if (remove("tmp") != 0) {
 		return 500;
-	} //else if (remove("tmp2") != 0) {
-//		return 500;
-//	}
+	}
+//	free(buf);
+	free(freqs);
 	return 200;
 }
